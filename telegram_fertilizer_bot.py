@@ -66,15 +66,27 @@ async def calculate_fertilizer(message: types.Message):
         "Cost_per_ha": "120$"
     }
 
-response = (
-    f"Рекомендована марка добрив: {recommendation['NPK']}\n"
-    f"Сірка: {recommendation['Sulfur']}\n"
-    f"Азот: {recommendation['Nitrogen']}\n"
-    f"Середня вартість на 1 га: {recommendation['Cost_per_ha']}"
-)
+@dp.message_handler(lambda message: message.text in moisture_zones)
+async def calculate_fertilizer(message: types.Message):
+    moisture = message.text
+    await message.reply(f"Ви обрали зону зволоження: {moisture}. Тепер розрахуємо необхідну кількість добрив.")
 
+    # Логіка розрахунку добрив
+    recommendation = {
+        "NPK": "10-26-26",
+        "Sulfur": "5-10 кг",
+        "Nitrogen": "50-100 кг",
+        "Cost_per_ha": "120$"
+    }
 
-await message.reply(response)
+    response = (
+        f"Рекомендована марка добрив: {recommendation['NPK']}\n"
+        f"Сірка: {recommendation['Sulfur']}\n"
+        f"Азот: {recommendation['Nitrogen']}\n"
+        f"Середня вартість на 1 га: {recommendation['Cost_per_ha']}"
+    )
+
+    await message.reply(response)
 
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
