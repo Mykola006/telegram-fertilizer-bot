@@ -1,94 +1,114 @@
 import os
-import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.enums import ParseMode
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from aiogram.utils import executor
-from dotenv import load_dotenv
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.context import FSMContext
+from aiogram.filters import Command
+import logging
 
 # Завантаження змінних середовища
-load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Налаштування бота
-bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
-dp = Dispatcher(bot)
+# Ініціалізація бота
+bot = Bot(token=TOKEN)
+dp = Dispatcher(storage=MemoryStorage())
 
-# Варіанти культур, типів ґрунту, попередників
+# Клавіатура головного меню
+main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+main_keyboard.add(KeyboardButton("🌱 Обрати культуру"))
+main_keyboard.add(KeyboardButton("ℹ️ Інформація про бота"))
+
+# Список культур, типів ґрунту, попередників
 crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
-soil_types = ["Чорнозем", "Сірозем", "Підзолистий", "Глинистий", "Супіщаний"]
-previous_crops = ["Зернові", "Бобові", "Технічні", "Овочі", "Чистий пар"]
+soil_types = ["Чорнозем", "Супіщаний", "Глинистий", "Підзолистий"]
+previous_crops = ["Зернові", "Бобові", "Олійні"]
 moisture_zones = ["Низька", "Середня", "Достатня"]
 
-# Функція створення клавіатури
-def create_keyboard(options):
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    for option in options:
-        keyboard.add(KeyboardButton(option))
-    return keyboard
-
-# Головне меню
-main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
-    KeyboardButton("🌱 Обрати культуру"), KeyboardButton("ℹ️ Інформація про бота"))
+# Клавіатура для оплати
+payment_keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[
+        [InlineKeyboardButton(text="💳 Оплатити 10$", url="https://www.liqpay.ua/")]
+    ]
+)
 
 # Обробник команди /start
-@dp.message_handler(commands=['start'])
-async def send_welcome(message: types.Message):
-    await message.reply("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть культуру:",
-                        reply_markup=create_keyboard(crops))
+@dp.message(Command("start"))
+async def start(message: types.Message):
+    await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть культуру:", reply_markup=main_keyboard)
 
 # Вибір культури
-@dp.message_handler(lambda message: message.text in crops)
-async def select_soil(message: types.Message):
-    crop = message.text
-    await message.reply(f"✅ Ви обрали: {crop}. Тепер оберіть тип ґрунту:", reply_markup=create_keyboard(soil_types))
+@dp.message(lambda message: message.text == "🌱 Обрати культуру")
+async def select_crop(message: types.Message):
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    for crop in crops:
+        keyboard.add(KeyboardButton(crop))
+    await message.answer("Будь ласка, оберіть культуру:", reply_markup=keyboard)
 
-# Вибір ґрунту
-@dp.message_handler(lambda message: message.text in soil_types)
-async def select_previous_crop(message: types.Message):
-    soil = message.text
-    await message.reply(f"✅ Ви обрали: {soil}. Тепер оберіть попередник:", reply_markup=create_keyboard(previous_crops))
+# Вибір типу ґрунту
+@dp.message(lambda message: message.text in crops)
+async def select_soil(message: types.Message, state: FSMContext):
+    await state.update_data(crop=message.text)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    for soil in soil_types:
+        keyboard.add(KeyboardButton(soil))
+    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть тип ґрунту:", reply_markup=keyboard)
 
 # Вибір попередника
-@dp.message_handler(lambda message: message.text in previous_crops)
-async def select_moisture_zone(message: types.Message):
-    prev_crop = message.text
-    await message.reply(f"✅ Ви обрали: {prev_crop}. Тепер виберіть зону зволоження:", reply_markup=create_keyboard(moisture_zones))
+@dp.message(lambda message: message.text in soil_types)
+async def select_previous_crop(message: types.Message, state: FSMContext):
+    await state.update_data(soil=message.text)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    for prev_crop in previous_crops:
+        keyboard.add(KeyboardButton(prev_crop))
+    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть попередник:", reply_markup=keyboard)
 
 # Вибір зони зволоження
-@dp.message_handler(lambda message: message.text in moisture_zones)
-async def calculate_fertilizer(message: types.Message):
-    moisture = message.text
-    await message.reply(f"✅ Ви обрали зону зволоження: {moisture}. Розраховуємо норму добрив...")
+@dp.message(lambda message: message.text in previous_crops)
+async def select_moisture_zone(message: types.Message, state: FSMContext):
+    await state.update_data(previous_crop=message.text)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    for zone in moisture_zones:
+        keyboard.add(KeyboardButton(zone))
+    await message.answer(f"✅ Ви обрали {message.text}. Тепер виберіть зону зволоження:", reply_markup=keyboard)
 
-    # Логіка розрахунку добрив
-    recommendation = {
-        "NPK": "10-26-26",  # Комплексне добриво
-        "Sulfur": "5-10 кг",
-        "Nitrogen": "50-100 кг",
-        "Cost_per_ha": "120$"
+# Розрахунок добрив
+@dp.message(lambda message: message.text in moisture_zones)
+async def calculate_fertilizers(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()
+    crop, soil, prev_crop, moisture = user_data.values()
+    
+    # Аналітична модель (спрощено)
+    recommended_fertilizers = {
+        "Комплексне": {"Марка": "NPK 10-26-26", "Норма": "200 кг/га", "Ціна": "$50/га"},
+        "Азотне": {"Марка": "КАС-32", "Норма": "100 кг/га", "Ціна": "$30/га"},
+        "Сірчане": {"Марка": "Сульфат амонію", "Норма": "50 кг/га", "Ціна": "$15/га"},
     }
 
-    response = (
-        f"✅ <b>Рекомендована марка добрив:</b> {recommendation['NPK']}\n"
-        f"🌿 <b>Сірка:</b> {recommendation['Sulfur']}\n"
-        f"⚡ <b>Азот:</b> {recommendation['Nitrogen']}\n"
-        f"💰 <b>Середня вартість на 1 га:</b> {recommendation['Cost_per_ha']}"
-    )
+    response = f"🔍 Аналітичні дані:
+🌾 Культура: {crop}
+🪵 Попередник: {prev_crop}
+🌍 Тип ґрунту: {soil}
+💧 Зона зволоження: {moisture}
 
-    await message.reply(response, reply_markup=ReplyKeyboardMarkup(resize_keyboard=True).add(
-        KeyboardButton("🔄 Змінити марки добрив"), KeyboardButton("✅ Врахувати аналіз ґрунту")
-    ))
+📊 Рекомендовані добрива:
+✔ {recommended_fertilizers['Комплексне']['Марка']} — {recommended_fertilizers['Комплексне']['Норма']} — {recommended_fertilizers['Комплексне']['Ціна']}
+✔ {recommended_fertilizers['Азотне']['Марка']} — {recommended_fertilizers['Азотне']['Норма']} — {recommended_fertilizers['Азотне']['Ціна']}
+✔ {recommended_fertilizers['Сірчане']['Марка']} — {recommended_fertilizers['Сірчане']['Норма']} — {recommended_fertilizers['Сірчане']['Ціна']}"
+    
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(KeyboardButton("🔄 Змінити марки добрив"))
+    keyboard.add(KeyboardButton("🌱 Обрати іншу культуру"))
+    await message.answer(response, reply_markup=keyboard)
 
-# Обробка кнопки "Врахувати аналіз ґрунту"
-@dp.message_handler(lambda message: message.text == "✅ Врахувати аналіз ґрунту")
-async def handle_analysis_request(message: types.Message):
-    await message.reply("📊 Для детального аналізу звертайтесь: simoxa@ukr.net")
+# Обробка вибору інших марок
+@dp.message(lambda message: message.text == "🔄 Змінити марки добрив")
+async def change_fertilizers(message: types.Message):
+    await message.answer("🔍 Виберіть інші марки добрив:", reply_markup=payment_keyboard)
 
-# Обробка кнопки "Змінити марки добрив"
-@dp.message_handler(lambda message: message.text == "🔄 Змінити марки добрив")
-async def change_fertilizer_brands(message: types.Message):
-    await message.reply("💡 Оберіть інші марки добрив:", reply_markup=create_keyboard(["NPK 12-24-12", "NPK 15-15-15", "NPK 20-20-20"]))
+# Запуск бота
+async def main():
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    import asyncio
+    asyncio.run(main())
