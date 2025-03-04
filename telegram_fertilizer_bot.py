@@ -1,4 +1,7 @@
 import os
+import requests
+import matplotlib.pyplot as plt
+import numpy as np
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -6,7 +9,6 @@ from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 import logging
 from aiohttp import web
-import requests
 
 # Завантаження змінних середовища
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -42,39 +44,25 @@ def get_weather_data(region):
         return data.get("daily", {}).get("precipitation_sum", "Немає даних")
     return "Немає даних"
 
-def adjust_for_soil_analysis(fertilizer_rates, soil_analysis):
-    return {key: max(0, fertilizer_rates[key] - soil_analysis.get(key, 0)) for key in fertilizer_rates}
-
-def adjust_for_yield(fertilizer_rates, planned_yield):
-    factor = planned_yield / base_yield
-    return {key: round(fertilizer_rates[key] * factor) for key in fertilizer_rates}
-
-def split_fertilization(fertilizer_rates):
-    return {
-        "Основне внесення": {key: round(fertilizer_rates[key] * 0.5) for key in fertilizer_rates},
-        "Передпосівне": {key: round(fertilizer_rates[key] * 0.3) for key in fertilizer_rates},
-        "Підживлення": {key: round(fertilizer_rates[key] * 0.2) for key in fertilizer_rates}
-    }
-
 def calculate_fertilizer_cost(fertilizer_rates):
     return sum(fertilizer_rates[element] * price_per_kg[element] for element in ["N", "P", "K"])
 
-def adjust_for_soil_ph(soil_ph, target_ph=6.5):
-    if soil_ph < target_ph:
-        return f"Рекомендується внесення вапна: {round((target_ph - soil_ph) * 2, 1)} т/га"
-    return "pH ґрунту в нормі, вапнування не потрібне."
+# Функція створення графіків
+async def generate_fertilizer_chart(data):
+    elements = list(data.keys())
+    values = list(data.values())
+    plt.figure(figsize=(6, 4))
+    plt.bar(elements, values, color=['blue', 'green', 'red'])
+    plt.xlabel("Елементи")
+    plt.ylabel("Кількість (кг/га)")
+    plt.title("Рекомендовані добрива")
+    plt.savefig("fertilizer_chart.png")
+    return "fertilizer_chart.png"
 
-def check_climate_risks(moisture):
-    if moisture == "Низька":
-        return "⚠️ Ризик низької ефективності добрив через нестачу вологи! Рекомендується дробове внесення."
-    return "✅ Оптимальні умови для внесення добрив."
-
-def optimize_fertilizer_budget(fertilizer_rates, budget):
-    total_cost = calculate_fertilizer_cost(fertilizer_rates)
-    if total_cost > budget:
-        factor = budget / total_cost
-        return {key: round(fertilizer_rates[key] * factor) for key in fertilizer_rates}
-    return fertilizer_rates
+# Функція нагадувань
+async def send_fertilization_reminders(chat_id, schedule):
+    for date, task in schedule.items():
+        await bot.send_message(chat_id, f"📅 Нагадування: {task} на {date}")
 
 @dp.message(lambda message: message.text in regions)
 async def select_region(message: types.Message, state: FSMContext):
@@ -91,6 +79,9 @@ async def calculate_fertilizers(message: types.Message, state: FSMContext):
     
     crop, soil, prev_crop, moisture, region = user_data["crop"], user_data["soil"], user_data["previous_crop"], message.text, user_data["region"]
     weather_info = get_weather_data(region)
+    fertilizer_rates = {"N": 120, "P": 60, "K": 90}  # Заглушка для тесту
+    total_cost = calculate_fertilizer_cost(fertilizer_rates)
+    chart_path = await generate_fertilizer_chart(fertilizer_rates)
 
     response = f"""
 🔍 **Аналітичні дані**:
@@ -100,8 +91,10 @@ async def calculate_fertilizers(message: types.Message, state: FSMContext):
 💧 Зона зволоження: {moisture}
 📍 Область: {region}
 ☁️ Останні метеодані: {weather_info}
+💰 Орієнтовна вартість добрив: {total_cost} $/га
 """
     await message.answer(response)
+    await bot.send_photo(message.chat.id, photo=open(chart_path, 'rb'))
 
 if __name__ == "__main__":
     web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
