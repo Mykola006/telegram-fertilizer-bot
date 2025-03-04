@@ -1,124 +1,103 @@
 import os
+import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.client.default import DefaultBotProperties
-from aiogram.enums import ParseMode
-from aiogram.filters import Command
-from aiogram import F
-from aiogram.types import Message
+from aiogram.types import (ReplyKeyboardMarkup, KeyboardButton, 
+                           InlineKeyboardMarkup, InlineKeyboardButton)
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import StatesGroup, State
 from aiogram.fsm.storage.memory import MemoryStorage
-import asyncio
+from aiogram.utils.callback_data import CallbackData
+from aiogram.enums import ParseMode
+from dotenv import load_dotenv
 
 # Завантажуємо змінні середовища
+load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Ініціалізація бота та диспетчера
-bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+# Ініціалізація бота
+bot = Bot(token=TOKEN, default=types.DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher(storage=MemoryStorage())
 
-# Варіанти вибору
-crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
-soil_types = ["Чорнозем", "Сірозем", "Піщаний", "Глинистий", "Супіщаний"]
-previous_crops = ["Зернові", "Бобові", "Технічні", "Овочі", "Чистий пар"]
+# Клавіатура для головного меню
+main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+main_keyboard.add(KeyboardButton("🌱 Обрати культуру"))
+main_keyboard.add(KeyboardButton("ℹ️ Інформація про бота"))
+
+# Callback для вибору культури
+crop_callback = CallbackData("crop", "name")
+
+# Варіанти культур
+crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Соя"]
+soil_types = ["Чорнозем", "Супіщаний", "Глинистий"]
+previous_crops = ["Зернові", "Бобові", "Технічні"]
 moisture_zones = ["Низька", "Середня", "Достатня"]
 
-# Головне меню
-main_keyboard = ReplyKeyboardMarkup(keyboard=[
-    [KeyboardButton(text="🌱 Обрати культуру")],
-    [KeyboardButton(text="ℹ️ Інформація про бота")]
-], resize_keyboard=True)
+@dp.message_handler(commands=["start"])
+async def send_welcome(message: types.Message):
+    await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть культуру:", 
+                         reply_markup=create_keyboard(crops, crop_callback))
 
-# Функція створення клавіатури
-def create_keyboard(options):
-    return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=option)] for option in options],
-        resize_keyboard=True
-    )
+def create_keyboard(options, callback):
+    markup = InlineKeyboardMarkup()
+    for option in options:
+        markup.add(InlineKeyboardButton(text=option, callback_data=callback.new(name=option)))
+    return markup
 
-# Обробник команди /start
-@dp.message(Command("start"))
-async def send_welcome(message: Message):
-    await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення.\nОберіть культуру:", reply_markup=main_keyboard)
+@dp.callback_query_handler(crop_callback.filter())
+async def select_soil(callback_query: types.CallbackQuery, callback_data: dict):
+    crop = callback_data["name"]
+    await bot.send_message(callback_query.from_user.id, f"✅ Ви обрали {crop}. Тепер оберіть тип ґрунту:",
+                           reply_markup=create_keyboard(soil_types, crop_callback))
 
-# Обробник кнопки "Інформація про бота"
-@dp.message(F.text == "ℹ️ Інформація про бота")
-async def send_info(message: Message):
-    await message.answer("ℹ️ Детальніше про бота: [Сайт](https://sites.google.com/view/agronom-bot/)", parse_mode="Markdown")
-
-# Обробник вибору культури
-@dp.message(F.text == "🌱 Обрати культуру")
-async def select_crop(message: Message, state: FSMContext):
-    await message.answer("Будь ласка, оберіть культуру:", reply_markup=create_keyboard(crops))
-
-@dp.message(F.text.in_(crops))
-async def select_soil(message: Message, state: FSMContext):
-    await state.update_data(crop=message.text)
-    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть тип ґрунту:", reply_markup=create_keyboard(soil_types))
-
-@dp.message(F.text.in_(soil_types))
-async def select_previous_crop(message: Message, state: FSMContext):
-    await state.update_data(soil=message.text)
-    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть попередник:", reply_markup=create_keyboard(previous_crops))
-
-@dp.message(F.text.in_(previous_crops))
-async def select_moisture_zone(message: Message, state: FSMContext):
-    await state.update_data(previous_crop=message.text)
-    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть зону зволоження:", reply_markup=create_keyboard(moisture_zones))
-
-@dp.message(F.text.in_(moisture_zones))
-async def calculate_fertilizer(message: Message, state: FSMContext):
-    user_data = await state.get_data()
-    crop = user_data.get("crop")
-    soil = user_data.get("soil")
-    previous_crop = user_data.get("previous_crop")
-    moisture = message.text
-
-    # Розрахункові дані
-    recommendations = {
-        "Кукурудза": {"NPK": ("10-26-26", 200, 80), "Азот": ("КАС 32", 100, 50), "Сірка": ("Сульфат амонію", 50, 30), "Врожайність": "10 т/га"},
-        "Пшениця": {"NPK": ("16-16-16", 150, 70), "Азот": ("Селітра аміачна", 90, 45), "Сірка": ("Гіпс", 30, 20), "Врожайність": "7 т/га"},
-        "Соняшник": {"NPK": ("8-20-30", 180, 85), "Азот": ("Карбамід", 70, 40), "Сірка": ("Сульфат калію", 40, 25), "Врожайність": "4 т/га"}
+# Розрахунок добрив
+async def calculate_fertilizer(crop, soil, prev_crop, moisture, yield_goal):
+    # Базові норми виносу елементів живлення на 1 т врожаю
+    nutrient_needs = {
+        "Пшениця": {"N": 30, "P": 12, "K": 25},
+        "Кукурудза": {"N": 27, "P": 11, "K": 24},
+        "Соняшник": {"N": 50, "P": 15, "K": 60},
+        "Ріпак": {"N": 70, "P": 20, "K": 45},
+        "Соя": {"N": 40, "P": 10, "K": 30}
+    }
+    
+    # Врахування типу ґрунту
+    soil_adjustment = {"Чорнозем": 1.0, "Супіщаний": 1.2, "Глинистий": 0.8}
+    
+    # Врахування попередника
+    prev_crop_adjustment = {"Зернові": 1.1, "Бобові": 0.7, "Технічні": 1.3}
+    
+    # Кінцеві розрахунки
+    n_need = nutrient_needs[crop]["N"] * yield_goal * soil_adjustment[soil] * prev_crop_adjustment[prev_crop]
+    p_need = nutrient_needs[crop]["P"] * yield_goal * soil_adjustment[soil] * prev_crop_adjustment[prev_crop]
+    k_need = nutrient_needs[crop]["K"] * yield_goal * soil_adjustment[soil] * prev_crop_adjustment[prev_crop]
+    
+    return {
+        "N": round(n_need),
+        "P": round(p_need),
+        "K": round(k_need),
+        "Recommendation": f"Рекомендовані норми: N-{round(n_need)} кг/га, P-{round(p_need)} кг/га, K-{round(k_need)} кг/га"
     }
 
-    recommendation = recommendations.get(crop, {})
+@dp.callback_query_handler()
+async def show_fertilizer_recommendation(callback_query: types.CallbackQuery):
+    user_id = callback_query.from_user.id
+    crop, soil, prev_crop, moisture, yield_goal = "Кукурудза", "Чорнозем", "Зернові", "Середня", 6  # Приклад значень
+    result = await calculate_fertilizer(crop, soil, prev_crop, moisture, yield_goal)
     
-    response = f"🌿 <b>Рекомендації для {crop}</b>\n"
-    response += f"🟢 Попередник: {previous_crop}\n"
-    response += f"🌱 Ґрунт: {soil}\n"
-    response += f"💧 Зона зволоження: {moisture}\n"
-    response += f"🌾 Планова врожайність: {recommendation.get('Врожайність', 'Не визначено')}\n\n"
+    keyboard = InlineKeyboardMarkup().add(
+        InlineKeyboardButton("💰 Врахувати аналіз ґрунту", callback_data="consider_analysis"),
+        InlineKeyboardButton("🔄 Змінити марки добрив", callback_data="change_fertilizer"),
+    )
     
-    response += f"⚗️ <b>Комплексні добрива:</b>\n"
-    response += f"🔹 {recommendation['NPK'][0]} - {recommendation['NPK'][1]} кг/га (~{recommendation['NPK'][2]}$/га)\n\n"
-    
-    response += f"⚗️ <b>Азотні добрива:</b>\n"
-    response += f"🔹 {recommendation['Азот'][0]} - {recommendation['Азот'][1]} кг/га (~{recommendation['Азот'][2]}$/га)\n\n"
-    
-    response += f"⚗️ <b>Сірчані добрива:</b>\n"
-    response += f"🔹 {recommendation['Сірка'][0]} - {recommendation['Сірка'][1]} кг/га (~{recommendation['Сірка'][2]}$/га)\n\n"
+    await bot.send_message(user_id, result["Recommendation"], reply_markup=keyboard)
 
-    buttons = [
-        [InlineKeyboardButton(text="🔄 Обрати іншу культуру", callback_data="restart")],
-        [InlineKeyboardButton(text="🌿 Змінити марки добрив", callback_data="change_fertilizer")],
-        [InlineKeyboardButton(text="💳 Придбати розширений аналіз ($10)", callback_data="buy_premium")]
-    ]
-    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+# Обробник кнопки "Врахувати аналіз ґрунту"
+@dp.callback_query_handler(lambda c: c.data == "consider_analysis")
+async def consider_analysis(callback_query: types.CallbackQuery):
+    await bot.send_message(callback_query.from_user.id, "⚠️ Введіть ваші результати аналізу ґрунту:")
 
-    await message.answer(response, reply_markup=keyboard)
-
-@dp.callback_query(F.data == "restart")
-async def restart_process(callback_query: types.CallbackQuery, state: FSMContext):
-    await state.clear()
-    await callback_query.message.answer("🔄 Почнемо спочатку! Оберіть культуру:", reply_markup=create_keyboard(crops))
-
-@dp.callback_query(F.data == "buy_premium")
-async def buy_premium(callback_query: types.CallbackQuery):
-    await callback_query.message.answer("💳 Оплата тимчасово недоступна. Для консультацій пишіть: simoxa@ukr.net")
-
-async def main():
-    await dp.start_polling(bot)
-
+# Запуск бота
 if __name__ == "__main__":
-    asyncio.run(main())
+    import asyncio
+    from aiogram import executor
+    loop = asyncio.get_event_loop()
+    loop.create_task(dp.start_polling())
