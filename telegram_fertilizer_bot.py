@@ -78,7 +78,7 @@ await message.reply(response)  # ✅ Відступ правильний
 
 
 
-    await message.reply(response)
+await message.reply(response)
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+executor.start_polling(dp, skip_updates=True)
