@@ -73,6 +73,9 @@ response = (
     f"Середня вартість на 1 га: {recommendation['Cost_per_ha']}"
 )
 
+await message.reply(response)  # ✅ Відступ правильний
+
+
 
     await message.reply(response)
 
