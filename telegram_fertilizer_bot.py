@@ -13,8 +13,16 @@ dp = Dispatcher()
 logging.basicConfig(level=logging.INFO)
 
 # Кнопки для вибору культури
-kb_cultures = ReplyKeyboardMarkup(resize_keyboard=True)
-kb_cultures.add("Озимий ріпак", "Озима пшениця", "Кукурудза", "Соняшник", "Соя")
+kb_cultures = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Озимий ріпак")],
+        [KeyboardButton(text="Озима пшениця")],
+        [KeyboardButton(text="Кукурудза")],
+        [KeyboardButton(text="Соняшник")],
+        [KeyboardButton(text="Соя")]
+    ],
+    resize_keyboard=True
+)
 
 # База даних норм добрив (NPKS на 1 тону врожаю)
 fertilizer_data = {
