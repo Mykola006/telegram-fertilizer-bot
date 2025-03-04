@@ -4,18 +4,18 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.filters import Command
+from aiogram.client.default import DefaultBotProperties
 from dotenv import load_dotenv
 
 # Завантаження змінних середовища
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-ADMINS = os.getenv("ADMIN_IDS", "").split(',')  # ID адміністраторів через кому
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO)
 
-# Ініціалізація бота
-bot = Bot(token=TOKEN, parse_mode="HTML")  # Додано parse_mode="HTML"
+# Ініціалізація бота з коректним `parse_mode`
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 dp = Dispatcher()
 
 # Варіанти вибору
