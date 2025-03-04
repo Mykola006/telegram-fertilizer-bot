@@ -77,6 +77,7 @@ await message.reply(response)  # ✅ Відступ правильний
 
 
 
+
     await message.reply(response)
 
 if __name__ == "__main__":
