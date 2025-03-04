@@ -23,7 +23,7 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # Клавіатура головного меню
-main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+main_keyboard = ReplyKeyboardMarkup(keyboard=[], resize_keyboard=True)
 main_keyboard.add(KeyboardButton("\U0001F331 Обрати культуру"))
 main_keyboard.add(KeyboardButton("ℹ️ Інформація про бота"))
 
