@@ -1,17 +1,24 @@
 import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 import logging
+from aiohttp import web
 
 # Завантаження змінних середовища
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+WEBHOOK_PATH = f"/{TOKEN}"
+WEBAPP_HOST = "0.0.0.0"
+WEBAPP_PORT = int(os.getenv("PORT", 8000))
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 # Ініціалізація бота
 bot = Bot(token=TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+storage = RedisStorage.from_url(REDIS_URL)
+dp = Dispatcher(storage=storage)
 
 # Клавіатура головного меню
 main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -75,39 +82,42 @@ async def select_moisture_zone(message: types.Message, state: FSMContext):
 @dp.message(lambda message: message.text in moisture_zones)
 async def calculate_fertilizers(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
-    crop, soil, prev_crop, moisture = user_data.values()
+    required_keys = ["crop", "soil", "previous_crop"]
     
-    # Аналітична модель (спрощено)
-    recommended_fertilizers = {
-        "Комплексне": {"Марка": "NPK 10-26-26", "Норма": "200 кг/га", "Ціна": "$50/га"},
-        "Азотне": {"Марка": "КАС-32", "Норма": "100 кг/га", "Ціна": "$30/га"},
-        "Сірчане": {"Марка": "Сульфат амонію", "Норма": "50 кг/га", "Ціна": "$15/га"},
-    }
-
+    if not all(key in user_data for key in required_keys):
+        await message.answer("⚠️ Виникла помилка! Будь ласка, почніть спочатку, обравши культуру.", reply_markup=main_keyboard)
+        return
+    
+    crop, soil, prev_crop, moisture = user_data["crop"], user_data["soil"], user_data["previous_crop"], message.text
+    
     response = (f"\U0001F50D Аналітичні дані:\n"
                 f"🌾 Культура: {crop}\n"
                 f"🪵 Попередник: {prev_crop}\n"
                 f"🌍 Тип ґрунту: {soil}\n"
-                f"💧 Зона зволоження: {moisture}\n\n"
-                f"📊 Рекомендовані добрива:\n"
-                f"✔ {recommended_fertilizers['Комплексне']['Марка']} — {recommended_fertilizers['Комплексне']['Норма']} — {recommended_fertilizers['Комплексне']['Ціна']}\n"
-                f"✔ {recommended_fertilizers['Азотне']['Марка']} — {recommended_fertilizers['Азотне']['Норма']} — {recommended_fertilizers['Азотне']['Ціна']}\n"
-                f"✔ {recommended_fertilizers['Сірчане']['Марка']} — {recommended_fertilizers['Сірчане']['Норма']} — {recommended_fertilizers['Сірчане']['Ціна']}")
+                f"💧 Зона зволоження: {moisture}")
     
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add(KeyboardButton("🔄 Змінити марки добрив"))
     keyboard.add(KeyboardButton("\U0001F331 Обрати іншу культуру"))
     await message.answer(response, reply_markup=keyboard)
 
-# Обробка вибору інших марок
-@dp.message(lambda message: message.text == "🔄 Змінити марки добрив")
-async def change_fertilizers(message: types.Message):
-    await message.answer("\U0001F50D Виберіть інші марки добрив:", reply_markup=payment_keyboard)
+# Запуск веб-сервера для webhook
+async def on_startup():
+    await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)
 
-# Запуск бота
-async def main():
-    await dp.start_polling(bot)
+async def on_shutdown():
+    await bot.delete_webhook()
+
+async def handle_update(request):
+    update = types.Update(**await request.json())
+    await dp.feed_update(bot, update)
+    return web.Response()
+
+app = web.Application()
+app.router.add_post(WEBHOOK_PATH, handle_update)
+
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
