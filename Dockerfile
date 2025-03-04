@@ -5,4 +5,4 @@ COPY . /app
 
 RUN pip install -r requirements.txt
 
-CMD ["python", "bot.py"]
+CMD ["python", "telegram_fertilizer_bot.py"]
