@@ -66,15 +66,13 @@ async def calculate_fertilizer(message: types.Message):
         "Cost_per_ha": "120$"
     }
 
-    response = (
-        f"Рекомендована марка добрив: {recommendation['NPK']}
-"
-        f"Сірка: {recommendation['Sulfur']}
-"
-        f"Азот: {recommendation['Nitrogen']}
-"
-        f"Середня вартість на 1 га: {recommendation['Cost_per_ha']}"
-    )
+response = (
+    f"Рекомендована марка добрив: {recommendation['NPK']}\n"
+    f"Сірка: {recommendation['Sulfur']}\n"
+    f"Азот: {recommendation['Nitrogen']}\n"
+    f"Середня вартість на 1 га: {recommendation['Cost_per_ha']}"
+)
+
 
     await message.reply(response)
 
