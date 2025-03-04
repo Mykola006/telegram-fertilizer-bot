@@ -1,100 +1,106 @@
-import asyncio
 import logging
 import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import Command
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.enums.parse_mode import ParseMode
+from aiogram.fsm.context import FSMContext
+from aiogram import F, Router
+from aiogram.types import Message
+from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from dotenv import load_dotenv
 
-# Завантаження змінних середовища
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Ініціалізація бота
-bot = Bot(token=TOKEN)
+bot = Bot(token=TOKEN, parse_mode=ParseMode.HTML)
 dp = Dispatcher()
+router = Router()
 
-# ⚡ Головне меню
-main_keyboard = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="🌱 Обрати культуру")],
-        [KeyboardButton(text="ℹ️ Інформація про бота")]
-    ],
-    resize_keyboard=True
-)
-
-# 🔹 Варіанти культур
-crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
+# Варіанти культур
+crops = ["Кукурудза", "Пшениця", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
 soil_types = ["Чорнозем", "Сірозем", "Підзолистий", "Глинистий", "Супіщаний"]
-previous_crops_groups = ["Зернові", "Бобові", "Технічні", "Овочі", "Чистий пар"]
+previous_crops = ["Зернові", "Бобові", "Технічні", "Овочі", "Чистий пар"]
 
-# 📌 Обробка команди /start
-@dp.message(Command("start"))
-async def start_command(message: types.Message):
+# Головне меню
+main_keyboard = ReplyKeyboardMarkup(keyboard=[
+    [KeyboardButton(text="🌱 Обрати культуру")],
+    [KeyboardButton(text="ℹ️ Інформація про бота")]
+], resize_keyboard=True)
+
+@dp.message(F.text == "/start")
+async def start(message: Message):
     await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть культуру:", reply_markup=main_keyboard)
 
-# 🌱 Обробник вибору культури
-@dp.message(lambda message: message.text == "🌱 Обрати культуру")
-async def select_crop(message: types.Message):
-    crop_keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=crop)] for crop in crops],
-        resize_keyboard=True
-    )
-    await message.answer("Будь ласка, оберіть культуру:", reply_markup=crop_keyboard)
+@dp.message(F.text == "🌱 Обрати культуру")
+async def choose_crop(message: Message):
+    keyboard = ReplyKeyboardBuilder()
+    for crop in crops:
+        keyboard.add(KeyboardButton(text=crop))
+    keyboard.adjust(2)
+    await message.answer("Будь ласка, оберіть культуру:", reply_markup=keyboard.as_markup(resize_keyboard=True))
 
-# 🏔 Обробка вибору ґрунту
-@dp.message(lambda message: message.text in crops)
-async def select_soil(message: types.Message):
-    selected_crop = message.text
-    soil_keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=soil)] for soil in soil_types],
-        resize_keyboard=True
-    )
-    await message.answer(f"✅ Ви обрали {selected_crop}. Тепер оберіть тип ґрунту:", reply_markup=soil_keyboard)
+@dp.message(F.text.in_(crops))
+async def choose_soil(message: Message, state: FSMContext):
+    await state.update_data(crop=message.text)
+    keyboard = ReplyKeyboardBuilder()
+    for soil in soil_types:
+        keyboard.add(KeyboardButton(text=soil))
+    keyboard.adjust(2)
+    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть тип ґрунту:", reply_markup=keyboard.as_markup(resize_keyboard=True))
 
-# 🌾 Обробка вибору попередника (група культур)
-@dp.message(lambda message: message.text in soil_types)
-async def select_previous_crop(message: types.Message):
-    selected_soil = message.text
-    prev_crop_keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=prev)] for prev in previous_crops_groups],
-        resize_keyboard=True
-    )
-    await message.answer(f"✅ Ви обрали {selected_soil}. Тепер оберіть попередник (групу культур):", reply_markup=prev_crop_keyboard)
+@dp.message(F.text.in_(soil_types))
+async def choose_previous_crop(message: Message, state: FSMContext):
+    await state.update_data(soil=message.text)
+    keyboard = ReplyKeyboardBuilder()
+    for prev in previous_crops:
+        keyboard.add(KeyboardButton(text=prev))
+    keyboard.adjust(2)
+    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть попередник:", reply_markup=keyboard.as_markup(resize_keyboard=True))
 
-# 📊 Генерація рекомендацій
-fertilizer_data = {
-    "Зернові": {"complex_fertilizer": "NPK 10-26-26", "complex_rate": 150, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 100, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 50, "cost": 120},
-    "Бобові": {"complex_fertilizer": "NPK 15-15-15", "complex_rate": 180, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 80, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 60, "cost": 110},
-    "Технічні": {"complex_fertilizer": "NPK 12-24-12", "complex_rate": 160, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 110, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 55, "cost": 130},
-    "Овочі": {"complex_fertilizer": "NPK 8-20-30", "complex_rate": 200, "nitrogen_fertilizer": "Селітра", "nitrogen_rate": 90, "sulfur_fertilizer": "Сульфат калію", "sulfur_rate": 70, "cost": 140},
-    "Чистий пар": {"complex_fertilizer": "NPK 10-20-20", "complex_rate": 140, "nitrogen_fertilizer": "Селітра", "nitrogen_rate": 70, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 45, "cost": 100},
-}
+@dp.message(F.text.in_(previous_crops))
+async def calculate_fertilizer(message: Message, state: FSMContext):
+    data = await state.get_data()
+    crop = data["crop"]
+    soil = data["soil"]
+    previous_crop = message.text
+    
+    # Визначення норми добрив
+    fertilizers = {
+        "Комплексні": "NPK 10-26-26",
+        "Азотні": "Карбамід 46%",
+        "Сірчані": "Сульфат амонію 21%"
+    }
+    
+    recommendation = f"\n✅ <b>Рекомендації для {crop}</b>\n\n"
+    recommendation += f"🌱 Попередник: {previous_crop}\n🧪 Ґрунт: {soil}\n\n"
+    recommendation += f"🔹 Комплексне добриво: {fertilizers['Комплексні']} (200 кг/га)\n"
+    recommendation += f"🔹 Азотне добриво: {fertilizers['Азотні']} (150 кг/га)\n"
+    recommendation += f"🔹 Сірчане добриво: {fertilizers['Сірчані']} (100 кг/га)\n\n"
+    recommendation += "💰 Орієнтовна вартість: 120$/га"
+    
+    # Додаткові кнопки
+    keyboard = ReplyKeyboardMarkup(keyboard=[
+        [KeyboardButton(text="🌾 Обрати іншу культуру"), KeyboardButton(text="🔄 Альтернативні варіанти")],
+        [KeyboardButton(text="💰 Придбати розширений розрахунок")]
+    ], resize_keyboard=True)
+    
+    await message.answer(recommendation, reply_markup=keyboard)
 
-# 📝 Обробка вибору попередника та розрахунок добрив
-@dp.message(lambda message: message.text in previous_crops_groups)
-async def calculate_fertilizer(message: types.Message):
-    selected_previous_crop = message.text
-    recommendation = fertilizer_data.get(selected_previous_crop, fertilizer_data["Зернові"])
-    await message.answer(
-        f"💡 Рекомендація для попередника {selected_previous_crop}:
-        \n📌 Комплексне добриво: {recommendation['complex_fertilizer']}, {recommendation['complex_rate']} кг/га
-        \n📌 Азотні добрива: {recommendation['nitrogen_fertilizer']}, {recommendation['nitrogen_rate']} кг/га
-        \n📌 Сірчані добрива: {recommendation['sulfur_fertilizer']}, {recommendation['sulfur_rate']} кг/га
-        \n💰 Орієнтовна вартість: {recommendation['cost']}$/га",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="🔄 Обрати іншу культуру")],
-                [KeyboardButton(text="⚙️ Альтернативні варіанти живлення")],
-            ],
-            resize_keyboard=True
-        )
-    )
+@dp.message(F.text == "💰 Придбати розширений розрахунок")
+async def buy_premium(message: Message):
+    await message.answer("💳 Оплата поки що умовна. Після реєстрації в LiqPay додамо справжню оплату.")
 
-# Запуск бота
-async def main():
-    logging.basicConfig(level=logging.INFO)
-    await dp.start_polling(bot)
+@dp.message(F.text == "ℹ️ Інформація про бота")
+async def bot_info(message: Message):
+    await message.answer("ℹ️ Інформація про бота: https://sites.google.com/view/agronom-bot/")
+
+@dp.message(F.text == "🌾 Обрати іншу культуру")
+async def restart(message: Message):
+    await choose_crop(message)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import asyncio
+    from aiogram import executor
+    
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(dp.start_polling(bot))
