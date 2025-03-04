@@ -1,7 +1,7 @@
 import os
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.fsm.storage.redis import RedisStorage
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 import logging
@@ -9,15 +9,17 @@ from aiohttp import web
 
 # Завантаження змінних середовища
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+if not TOKEN:
+    raise ValueError("Помилка: TELEGRAM_BOT_TOKEN не знайдено у змінних середовища!")
+
 WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 WEBHOOK_PATH = f"/{TOKEN}"
 WEBAPP_HOST = "0.0.0.0"
 WEBAPP_PORT = int(os.getenv("PORT", 8000))
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 # Ініціалізація бота
 bot = Bot(token=TOKEN)
-storage = RedisStorage.from_url(REDIS_URL)
+storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 # Клавіатура головного меню
