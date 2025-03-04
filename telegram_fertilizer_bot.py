@@ -15,7 +15,7 @@ dp = Dispatcher(storage=MemoryStorage())
 
 # Клавіатура головного меню
 main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-main_keyboard.add(KeyboardButton("🌱 Обрати культуру"))
+main_keyboard.add(KeyboardButton("\U0001F331 Обрати культуру"))
 main_keyboard.add(KeyboardButton("ℹ️ Інформація про бота"))
 
 # Список культур, типів ґрунту, попередників
@@ -34,10 +34,10 @@ payment_keyboard = InlineKeyboardMarkup(
 # Обробник команди /start
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть культуру:", reply_markup=main_keyboard)
+    await message.answer("\U0001F44B Вітаю! Це бот для розрахунку мінерального живлення. Оберіть культуру:", reply_markup=main_keyboard)
 
 # Вибір культури
-@dp.message(lambda message: message.text == "🌱 Обрати культуру")
+@dp.message(lambda message: message.text == "\U0001F331 Обрати культуру")
 async def select_crop(message: types.Message):
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     for crop in crops:
@@ -84,26 +84,25 @@ async def calculate_fertilizers(message: types.Message, state: FSMContext):
         "Сірчане": {"Марка": "Сульфат амонію", "Норма": "50 кг/га", "Ціна": "$15/га"},
     }
 
-    response = f"🔍 Аналітичні дані:
-🌾 Культура: {crop}
-🪵 Попередник: {prev_crop}
-🌍 Тип ґрунту: {soil}
-💧 Зона зволоження: {moisture}
-
-📊 Рекомендовані добрива:
-✔ {recommended_fertilizers['Комплексне']['Марка']} — {recommended_fertilizers['Комплексне']['Норма']} — {recommended_fertilizers['Комплексне']['Ціна']}
-✔ {recommended_fertilizers['Азотне']['Марка']} — {recommended_fertilizers['Азотне']['Норма']} — {recommended_fertilizers['Азотне']['Ціна']}
-✔ {recommended_fertilizers['Сірчане']['Марка']} — {recommended_fertilizers['Сірчане']['Норма']} — {recommended_fertilizers['Сірчане']['Ціна']}"
+    response = (f"\U0001F50D Аналітичні дані:\n"
+                f"🌾 Культура: {crop}\n"
+                f"🪵 Попередник: {prev_crop}\n"
+                f"🌍 Тип ґрунту: {soil}\n"
+                f"💧 Зона зволоження: {moisture}\n\n"
+                f"📊 Рекомендовані добрива:\n"
+                f"✔ {recommended_fertilizers['Комплексне']['Марка']} — {recommended_fertilizers['Комплексне']['Норма']} — {recommended_fertilizers['Комплексне']['Ціна']}\n"
+                f"✔ {recommended_fertilizers['Азотне']['Марка']} — {recommended_fertilizers['Азотне']['Норма']} — {recommended_fertilizers['Азотне']['Ціна']}\n"
+                f"✔ {recommended_fertilizers['Сірчане']['Марка']} — {recommended_fertilizers['Сірчане']['Норма']} — {recommended_fertilizers['Сірчане']['Ціна']}")
     
     keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     keyboard.add(KeyboardButton("🔄 Змінити марки добрив"))
-    keyboard.add(KeyboardButton("🌱 Обрати іншу культуру"))
+    keyboard.add(KeyboardButton("\U0001F331 Обрати іншу культуру"))
     await message.answer(response, reply_markup=keyboard)
 
 # Обробка вибору інших марок
 @dp.message(lambda message: message.text == "🔄 Змінити марки добрив")
 async def change_fertilizers(message: types.Message):
-    await message.answer("🔍 Виберіть інші марки добрив:", reply_markup=payment_keyboard)
+    await message.answer("\U0001F50D Виберіть інші марки добрив:", reply_markup=payment_keyboard)
 
 # Запуск бота
 async def main():
