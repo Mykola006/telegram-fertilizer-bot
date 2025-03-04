@@ -1,6 +1,19 @@
 import os
-import requests
-import matplotlib.pyplot as plt
+
+try:
+    import requests
+except ModuleNotFoundError:
+    import os
+    os.system("pip install requests")
+    import requests
+
+try:
+    import matplotlib.pyplot as plt
+except ModuleNotFoundError:
+    import os
+    os.system("pip install matplotlib")
+    import matplotlib.pyplot as plt
+
 import numpy as np
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
@@ -24,6 +37,7 @@ WEBAPP_PORT = int(os.getenv("PORT", 8000))
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
+app = web.Application()
 
 # Список культур, типів ґрунту, попередників, областей
 crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
@@ -44,57 +58,38 @@ def get_weather_data(region):
         return data.get("daily", {}).get("precipitation_sum", "Немає даних")
     return "Немає даних"
 
-def calculate_fertilizer_cost(fertilizer_rates):
-    return sum(fertilizer_rates[element] * price_per_kg[element] for element in ["N", "P", "K"])
-
-# Функція створення графіків
-async def generate_fertilizer_chart(data):
-    elements = list(data.keys())
-    values = list(data.values())
-    plt.figure(figsize=(6, 4))
-    plt.bar(elements, values, color=['blue', 'green', 'red'])
-    plt.xlabel("Елементи")
-    plt.ylabel("Кількість (кг/га)")
-    plt.title("Рекомендовані добрива")
-    plt.savefig("fertilizer_chart.png")
-    return "fertilizer_chart.png"
-
-# Функція нагадувань
-async def send_fertilization_reminders(chat_id, schedule):
-    for date, task in schedule.items():
-        await bot.send_message(chat_id, f"📅 Нагадування: {task} на {date}")
-
-@dp.message(lambda message: message.text in regions)
-async def select_region(message: types.Message, state: FSMContext):
-    await state.update_data(region=message.text)
-    weather_info = get_weather_data(message.text)
-    await message.answer(f"Ви обрали {message.text} область. Останні метеодані: {weather_info}")
-
-@dp.message(lambda message: message.text in moisture_zones)
-async def calculate_fertilizers(message: types.Message, state: FSMContext):
-    user_data = await state.get_data()
-    if not all(key in user_data for key in ["crop", "soil", "previous_crop", "region"]):
-        await message.answer("⚠️ Виникла помилка! Почніть спочатку.")
-        return
+def calculate_fertilizer_needs(crop, soil, prev_crop, moisture):
+    fertilizer_recommendations = {
+        "Пшениця": {"N": 120, "P": 60, "K": 90},
+        "Кукурудза": {"N": 150, "P": 80, "K": 100},
+        "Соняшник": {"N": 90, "P": 50, "K": 70},
+    }
     
-    crop, soil, prev_crop, moisture, region = user_data["crop"], user_data["soil"], user_data["previous_crop"], message.text, user_data["region"]
-    weather_info = get_weather_data(region)
-    fertilizer_rates = {"N": 120, "P": 60, "K": 90}  # Заглушка для тесту
-    total_cost = calculate_fertilizer_cost(fertilizer_rates)
-    chart_path = await generate_fertilizer_chart(fertilizer_rates)
-
-    response = f"""
-🔍 **Аналітичні дані**:
-🌾 Культура: {crop}
-🪵 Попередник: {prev_crop}
-🌍 Тип ґрунту: {soil}
-💧 Зона зволоження: {moisture}
-📍 Область: {region}
-☁️ Останні метеодані: {weather_info}
-💰 Орієнтовна вартість добрив: {total_cost} $/га
-"""
-    await message.answer(response)
-    await bot.send_photo(message.chat.id, photo=open(chart_path, 'rb'))
+    soil_adjustments = {
+        "Чорнозем": {"N": 1.0, "P": 1.0, "K": 1.0},
+        "Супіщаний": {"N": 1.2, "P": 1.1, "K": 1.2},
+        "Глинистий": {"N": 0.9, "P": 1.0, "K": 0.9},
+    }
+    
+    prev_crop_adjustments = {
+        "Зернові": {"N": 1.1, "P": 1.0, "K": 1.0},
+        "Бобові": {"N": 0.8, "P": 1.1, "K": 1.1},
+        "Олійні": {"N": 1.0, "P": 1.0, "K": 1.0},
+    }
+    
+    moisture_adjustments = {
+        "Низька": {"N": 0.9, "P": 1.0, "K": 1.0},
+        "Середня": {"N": 1.0, "P": 1.0, "K": 1.0},
+        "Достатня": {"N": 1.1, "P": 1.1, "K": 1.1},
+    }
+    
+    base = fertilizer_recommendations.get(crop, {"N": 0, "P": 0, "K": 0})
+    adjusted = {
+        "N": round(base["N"] * soil_adjustments[soil]["N"] * prev_crop_adjustments[prev_crop]["N"] * moisture_adjustments[moisture]["N"]),
+        "P": round(base["P"] * soil_adjustments[soil]["P"] * prev_crop_adjustments[prev_crop]["P"] * moisture_adjustments[moisture]["P"]),
+        "K": round(base["K"] * soil_adjustments[soil]["K"] * prev_crop_adjustments[prev_crop]["K"] * moisture_adjustments[moisture]["K"]),
+    }
+    return adjusted
 
 if __name__ == "__main__":
     web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
