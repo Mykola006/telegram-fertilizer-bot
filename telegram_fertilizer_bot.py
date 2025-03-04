@@ -15,10 +15,10 @@ ADMINS = os.getenv("ADMIN_IDS", "").split(',')  # ID адміністратор�
 logging.basicConfig(level=logging.INFO)
 
 # Ініціалізація бота
-bot = Bot(token=TOKEN)
+bot = Bot(token=TOKEN, parse_mode="HTML")  # Додано parse_mode="HTML"
 dp = Dispatcher()
 
-# Дані для клавіатури
+# Варіанти вибору
 crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
 soil_types = ["Чорнозем", "Сірозем", "Піщаний", "Глинистий", "Супіщаний"]
 previous_crops = ["Зернові", "Бобові", "Технічні", "Овочі", "Чистий пар"]
@@ -26,14 +26,8 @@ moisture_zones = ["Низька", "Середня", "Достатня"]
 
 # Функція створення клавіатури
 def create_keyboard(options):
-def create_keyboard(options):
-    keyboard = [[KeyboardButton(text=option)] for option in options]  # Виправлений формат
+    keyboard = [[KeyboardButton(text=option)] for option in options]  # Виправлено формат
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
-
-
-# Перевірка доступу адміністратора
-def is_admin(user_id):
-    return str(user_id) in ADMINS
 
 # Обробник команди /start
 @dp.message(Command("start"))
@@ -52,7 +46,8 @@ async def handle_message(message: Message):
         await message.answer(f"Ви обрали: {text}. Тепер виберіть зону зволоження:", reply_markup=create_keyboard(moisture_zones))
     elif text in moisture_zones:
         await message.answer(f"Ви обрали зону зволоження: {text}. Розраховуємо добрива...")
-        
+
+        # Розрахунок добрив
         recommendation = {
             "NPK": "10-26-26",
             "Sulfur": "5-10 кг",
@@ -60,12 +55,12 @@ async def handle_message(message: Message):
             "Cost_per_ha": "120$"
         }
         response = (
-            f"Рекомендована марка добрив: {recommendation['NPK']}\n"
-            f"Сірка: {recommendation['Sulfur']}\n"
-            f"Азот: {recommendation['Nitrogen']}\n"
-            f"Середня вартість на 1 га: {recommendation['Cost_per_ha']}"
+            f"✅ <b>Рекомендована марка добрив:</b> {recommendation['NPK']}\n"
+            f"🌿 <b>Сірка:</b> {recommendation['Sulfur']}\n"
+            f"🌱 <b>Азот:</b> {recommendation['Nitrogen']}\n"
+            f"💰 <b>Середня вартість на 1 га:</b> {recommendation['Cost_per_ha']}"
         )
-        await message.answer(response)
+        await message.answer(response, parse_mode="HTML")
 
 # Функція запуску бота
 async def main():
