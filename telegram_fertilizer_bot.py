@@ -1,129 +1,96 @@
-import asyncio
-import os
 import logging
-from aiogram import Bot, Dispatcher
-from aiogram.types import Message, ReplyKeyboardMarkup, KeyboardButton
-from aiogram.filters import Command
-from aiogram.client.default import DefaultBotProperties
+import os
+from aiogram import Bot, Dispatcher, types
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.utils import executor
+from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from dotenv import load_dotenv
 
-# Завантаження змінних середовища
+# Завантажуємо змінні середовища
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Налаштування логування
-logging.basicConfig(level=logging.INFO)
-
 # Ініціалізація бота
-bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
-dp = Dispatcher()
+bot = Bot(token=TOKEN)
+dp = Dispatcher(bot)
+dp.middleware.setup(LoggingMiddleware())
 
-# Варіанти вибору
+# Лічильник безкоштовних розрахунків
+user_data = {}
+
+# Посилання на сайт
+BOT_INFO_URL = "https://sites.google.com/view/agronom-bot/"
+
+# Основна клавіатура
+main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
+    KeyboardButton("🟢 Обрати культуру"),
+    KeyboardButton("ℹ️ Інформація про бота")
+)
+
+# Варіанти культур
 crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
-soil_types = ["Чорнозем", "Сірозем", "Піщаний", "Глинистий", "Супіщаний"]
-previous_crops = ["Зернові", "Бобові", "Технічні", "Овочі", "Чистий пар"]
-moisture_zones = ["Низька", "Середня", "Достатня"]
 
-# Орієнтовні потреби культур у NPK (на 1 ц врожаю)
-crop_requirements = {
-    "Пшениця": {"N": 2.5, "P": 1.2, "K": 2.0},
-    "Кукурудза": {"N": 2.8, "P": 1.0, "K": 2.5},
-    "Соняшник": {"N": 3.0, "P": 1.5, "K": 3.5},
-    "Ріпак": {"N": 3.2, "P": 1.8, "K": 2.8},
-    "Ячмінь": {"N": 2.3, "P": 1.1, "K": 1.8},
-    "Соя": {"N": 4.0, "P": 1.6, "K": 2.2},
-}
+# Функція створення клавіатури для культур
+def create_crop_keyboard():
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    for crop in crops:
+        keyboard.add(KeyboardButton(crop))
+    return keyboard
 
-# Середній вміст елементів у ґрунті (кг/га)
-soil_npk = {
-    "Чорнозем": {"N": 60, "P": 40, "K": 180},
-    "Сірозем": {"N": 40, "P": 30, "K": 150},
-    "Піщаний": {"N": 30, "P": 20, "K": 100},
-    "Глинистий": {"N": 50, "P": 35, "K": 170},
-    "Супіщаний": {"N": 35, "P": 25, "K": 120},
-}
+# Функція створення клавіатури після розрахунку
+def create_post_calc_keyboard():
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+    keyboard.add(KeyboardButton("🔄 Обрати іншу культуру"))
+    keyboard.add(KeyboardButton("🔍 Переглянути інші марки добрив"))
+    return keyboard
 
-# Вплив попередника (на зниження потреби у NPK)
-previous_crop_factor = {
-    "Зернові": {"N": 1.0, "P": 1.0, "K": 1.0},
-    "Бобові": {"N": 0.8, "P": 1.0, "K": 1.0},
-    "Технічні": {"N": 1.1, "P": 1.2, "K": 1.1},
-    "Овочі": {"N": 1.2, "P": 1.3, "K": 1.2},
-    "Чистий пар": {"N": 0.9, "P": 1.0, "K": 1.0},
-}
+@dp.message_handler(commands=['start'])
+async def send_welcome(message: types.Message):
+    user_data[message.from_user.id] = {"free_used": False}
+    await message.answer("Вітаю! Оберіть культуру:", reply_markup=create_crop_keyboard())
 
-# Збереження вибору користувача
-user_selection = {}
+@dp.message_handler(lambda message: message.text in crops)
+async def calculate_fertilizer(message: types.Message):
+    user_id = message.from_user.id
 
-# Функція створення клавіатури
-def create_keyboard(options):
-    keyboard = [[KeyboardButton(text=option)] for option in options]
-    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+    if user_id in user_data and user_data[user_id]["free_used"]:
+        keyboard = InlineKeyboardMarkup().add(InlineKeyboardButton("✅ Підтвердити оплату (10$)", callback_data="pay"))
+        await message.answer("Щоб продовжити розрахунки, необхідно сплатити 10$.", reply_markup=keyboard)
+        return
+    else:
+        user_data[user_id]["free_used"] = True
 
-# Обробник команди /start
-@dp.message(Command("start"))
-async def send_welcome(message: Message):
-    user_selection[message.chat.id] = {}
-    await message.answer("Вітаю! Оберіть культуру:", reply_markup=create_keyboard(crops))
+    crop = message.text
+    # Простий алгоритм розрахунку добрив
+    recommendation = {
+        "NPK": "10-26-26",
+        "Sulfur": "5-10 кг",
+        "Nitrogen": "50-100 кг",
+        "Cost_per_ha": "120$"
+    }
+    
+    response = (
+        f"✅ **Рекомендації для {crop}**\n\n"
+        f"🔹 **Марка добрив:** {recommendation['NPK']}\n"
+        f"🔹 **Сірка:** {recommendation['Sulfur']}\n"
+        f"🔹 **Азот:** {recommendation['Nitrogen']}\n"
+        f"💰 **Середня вартість на 1 га:** {recommendation['Cost_per_ha']}\n"
+    )
 
-# Обробники вибору
-@dp.message()
-async def handle_message(message: Message):
-    user_id = message.chat.id
-    text = message.text
+    await message.answer(response, parse_mode="Markdown", reply_markup=create_post_calc_keyboard())
 
-    if text in crops:
-        user_selection[user_id]["crop"] = text
-        await message.answer(f"Ви обрали культуру: <b>{text}</b>. Введіть планову врожайність у ц/га:")
+@dp.callback_query_handler(lambda call: call.data == "pay")
+async def process_payment(call: types.CallbackQuery):
+    await call.message.answer("✅ Оплату підтверджено! Ви можете обрати іншу культуру.", reply_markup=create_crop_keyboard())
 
-    elif text.isdigit():
-        user_selection[user_id]["yield"] = int(text)
-        await message.answer("Тепер виберіть тип ґрунту:", reply_markup=create_keyboard(soil_types))
+@dp.message_handler(lambda message: message.text == "🔄 Обрати іншу культуру")
+async def restart_calculation(message: types.Message):
+    await message.answer("Оберіть нову культуру:", reply_markup=create_crop_keyboard())
 
-    elif text in soil_types:
-        user_selection[user_id]["soil"] = text
-        await message.answer("Тепер виберіть попередник:", reply_markup=create_keyboard(previous_crops))
+@dp.message_handler(lambda message: message.text == "ℹ️ Інформація про бота")
+async def bot_info(message: types.Message):
+    await message.answer(f"ℹ️ Детальна інформація про бота доступна тут: {BOT_INFO_URL}")
 
-    elif text in previous_crops:
-        user_selection[user_id]["previous_crop"] = text
-        await message.answer("Тепер виберіть зону зволоження:", reply_markup=create_keyboard(moisture_zones))
-
-    elif text in moisture_zones:
-        user_selection[user_id]["moisture"] = text
-
-        # Отримуємо дані
-        crop = user_selection[user_id]["crop"]
-        planned_yield = user_selection[user_id]["yield"]
-        soil = user_selection[user_id]["soil"]
-        prev_crop = user_selection[user_id]["previous_crop"]
-
-        # Базова потреба в добривах
-        n_need = crop_requirements[crop]["N"] * planned_yield
-        p_need = crop_requirements[crop]["P"] * planned_yield
-        k_need = crop_requirements[crop]["K"] * planned_yield
-
-        # Віднімаємо середній запас елементів у ґрунті
-        n_need -= soil_npk[soil]["N"]
-        p_need -= soil_npk[soil]["P"]
-        k_need -= soil_npk[soil]["K"]
-
-        # Враховуємо попередник
-        n_need *= previous_crop_factor[prev_crop]["N"]
-        p_need *= previous_crop_factor[prev_crop]["P"]
-        k_need *= previous_crop_factor[prev_crop]["K"]
-
-        # Підбір добрив
-        fertilizer_plan = (
-            f"✅ Основне внесення: NPK 10-26-26 - {round(p_need * 2, 1)} кг/га\n"
-            f"🔹 Передпосівне удобрення: NPK 16-16-16 - {round((p_need + k_need) * 1.5, 1)} кг/га\n"
-            f"🌱 Підживлення азотом: КАС 32% - {round(n_need / 2, 1)} кг/га\n"
-        )
-
-        await message.answer(f"📌 <b>Рекомендація:</b>\n{fertilizer_plan}", parse_mode="HTML")
-
-# Запуск бота
-async def main():
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+    executor.start_polling(dp, skip_updates=True)
