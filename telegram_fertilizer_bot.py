@@ -26,7 +26,8 @@ moisture_zones = ["Низька", "Середня", "Достатня"]
 
 # Функція створення клавіатури
 def create_keyboard(options):
-    keyboard = [[KeyboardButton(option)] for option in options]  # Створюємо список списків кнопок
+def create_keyboard(options):
+    keyboard = [[KeyboardButton(text=option)] for option in options]  # Виправлений формат
     return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 
