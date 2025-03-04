@@ -5,9 +5,10 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.utils import executor
 from dotenv import load_dotenv
 
-# Завантажуємо змінні середовища
+# Завантаження змінних середовища
 load_dotenv()
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+ADMINS = os.getenv("ADMIN_IDS", "").split(',')  # ID адміністраторів через кому
 
 # Налаштування логування
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +17,7 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN)
 dp = Dispatcher(bot)
 
-# Варіанти культур
+# Дані для клавіатури
 crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
 soil_types = ["Чорнозем", "Сірозем", "Піщаний", "Глинистий", "Супіщаний"]
 previous_crops = ["Зернові", "Бобові", "Технічні", "Овочі", "Чистий пар"]
@@ -29,54 +30,46 @@ def create_keyboard(options):
         keyboard.add(KeyboardButton(option))
     return keyboard
 
+# Перевірка доступу адміністратора
+def is_admin(user_id):
+    return str(user_id) in ADMINS
+
 # Обробник команди /start
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     await message.reply("Вітаю! Оберіть культуру:", reply_markup=create_keyboard(crops))
 
-# Обробник вибору культури
+# Обробники вибору
 @dp.message_handler(lambda message: message.text in crops)
 async def select_soil(message: types.Message):
-    crop = message.text
-    await message.reply(f"Ви обрали: {crop}. Тепер виберіть тип ґрунту:", reply_markup=create_keyboard(soil_types))
+    await message.reply(f"Ви обрали: {message.text}. Тепер виберіть тип ґрунту:", reply_markup=create_keyboard(soil_types))
 
-# Обробник вибору ґрунту
 @dp.message_handler(lambda message: message.text in soil_types)
 async def select_previous_crop(message: types.Message):
-    soil = message.text
-    await message.reply(f"Ви обрали: {soil}. Тепер виберіть попередник:", reply_markup=create_keyboard(previous_crops))
+    await message.reply(f"Ви обрали: {message.text}. Тепер виберіть попередник:", reply_markup=create_keyboard(previous_crops))
 
-# Обробник вибору попередника
 @dp.message_handler(lambda message: message.text in previous_crops)
 async def select_moisture_zone(message: types.Message):
-    prev_crop = message.text
-    await message.reply(f"Ви обрали: {prev_crop}. Тепер виберіть зону зволоження:", reply_markup=create_keyboard(moisture_zones))
+    await message.reply(f"Ви обрали: {message.text}. Тепер виберіть зону зволоження:", reply_markup=create_keyboard(moisture_zones))
 
-# Обробник вибору зони зволоження
 @dp.message_handler(lambda message: message.text in moisture_zones)
 async def calculate_fertilizer(message: types.Message):
-    moisture = message.text
-    await message.reply(f"Ви обрали зону зволоження: {moisture}. Тепер розрахуємо необхідну кількість добрив.")
-
-    # Логіка розрахунку добрив
+    await message.reply(f"Ви обрали зону зволоження: {message.text}. Розраховуємо добрива...")
+    
     recommendation = {
         "NPK": "10-26-26",
         "Sulfur": "5-10 кг",
         "Nitrogen": "50-100 кг",
         "Cost_per_ha": "120$"
     }
-
     response = (
-        f"Рекомендована марка добрив: {recommendation['NPK']}
-"
-        f"Сірка: {recommendation['Sulfur']}
-"
-        f"Азот: {recommendation['Nitrogen']}
-"
+        f"Рекомендована марка добрив: {recommendation['NPK']}\n"
+        f"Сірка: {recommendation['Sulfur']}\n"
+        f"Азот: {recommendation['Nitrogen']}\n"
         f"Середня вартість на 1 га: {recommendation['Cost_per_ha']}"
     )
-
     await message.reply(response)
 
+# Захист від випадкового запуску
 if __name__ == "__main__":
     executor.start_polling(dp, skip_updates=True)
