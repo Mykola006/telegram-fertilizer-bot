@@ -76,10 +76,27 @@ async def handle_message(message: Message):
 
         # Логіка коригування норми внесення залежно від умов
         rate = fertilizer["Rate"]
-        if text == "Низька":
-            rate = str(int(rate.split("-")[0]) - 10) + "-" + str(int(rate.split("-")[1]) - 10) + " кг/га"
-        elif text == "Достатня":
-            rate = str(int(rate.split("-")[0]) + 10) + "-" + str(int(rate.split("-")[1]) + 10) + " кг/га"
+        
+        # Перевіряємо, чи це діапазон (наприклад, "150-180 кг/га")
+        if "-" in rate:
+            min_rate, max_rate = rate.replace(" кг/га", "").split("-")
+            min_rate, max_rate = int(min_rate), int(max_rate)
+
+            if text == "Низька":
+                min_rate, max_rate = min_rate - 10, max_rate - 10
+            elif text == "Достатня":
+                min_rate, max_rate = min_rate + 10, max_rate + 10
+
+            rate = f"{min_rate}-{max_rate} кг/га"
+        
+        # Якщо значення лише одне (наприклад, "220 кг/га")
+        else:
+            rate_value = int(rate.replace(" кг/га", ""))
+            if text == "Низька":
+                rate_value -= 10
+            elif text == "Достатня":
+                rate_value += 10
+            rate = f"{rate_value} кг/га"
 
         # Формування відповіді
         response = (
