@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from dotenv import load_dotenv
 
@@ -26,7 +26,7 @@ main_keyboard = ReplyKeyboardMarkup(
 # 🔹 Варіанти культур
 crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
 soil_types = ["Чорнозем", "Сірозем", "Підзолистий", "Глинистий", "Супіщаний"]
-previous_crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
+previous_crops_groups = ["Зернові", "Бобові", "Технічні", "Овочі", "Чистий пар"]
 
 # 📌 Обробка команди /start
 @dp.message(Command("start"))
@@ -52,37 +52,36 @@ async def select_soil(message: types.Message):
     )
     await message.answer(f"✅ Ви обрали {selected_crop}. Тепер оберіть тип ґрунту:", reply_markup=soil_keyboard)
 
-# 🌾 Обробка вибору попередника
+# 🌾 Обробка вибору попередника (група культур)
 @dp.message(lambda message: message.text in soil_types)
 async def select_previous_crop(message: types.Message):
     selected_soil = message.text
     prev_crop_keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text=prev)] for prev in previous_crops],
+        keyboard=[[KeyboardButton(text=prev)] for prev in previous_crops_groups],
         resize_keyboard=True
     )
-    await message.answer(f"✅ Ви обрали {selected_soil}. Тепер оберіть попередник:", reply_markup=prev_crop_keyboard)
+    await message.answer(f"✅ Ви обрали {selected_soil}. Тепер оберіть попередник (групу культур):", reply_markup=prev_crop_keyboard)
 
 # 📊 Генерація рекомендацій
-def generate_fertilizer_recommendation(previous_crop):
-    fertilizer_data = {
-        "Пшениця": {"complex_fertilizer": "NPK 10-26-26", "complex_rate": 150, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 100, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 50, "cost": 120},
-        "Кукурудза": {"complex_fertilizer": "NPK 15-15-15", "complex_rate": 200, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 120, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 40, "cost": 150},
-        "Соняшник": {"complex_fertilizer": "NPK 12-24-12", "complex_rate": 180, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 90, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 60, "cost": 130},
-    }
-    return fertilizer_data.get(previous_crop, fertilizer_data["Пшениця"])
+fertilizer_data = {
+    "Зернові": {"complex_fertilizer": "NPK 10-26-26", "complex_rate": 150, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 100, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 50, "cost": 120},
+    "Бобові": {"complex_fertilizer": "NPK 15-15-15", "complex_rate": 180, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 80, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 60, "cost": 110},
+    "Технічні": {"complex_fertilizer": "NPK 12-24-12", "complex_rate": 160, "nitrogen_fertilizer": "Карбамід", "nitrogen_rate": 110, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 55, "cost": 130},
+    "Овочі": {"complex_fertilizer": "NPK 8-20-30", "complex_rate": 200, "nitrogen_fertilizer": "Селітра", "nitrogen_rate": 90, "sulfur_fertilizer": "Сульфат калію", "sulfur_rate": 70, "cost": 140},
+    "Чистий пар": {"complex_fertilizer": "NPK 10-20-20", "complex_rate": 140, "nitrogen_fertilizer": "Селітра", "nitrogen_rate": 70, "sulfur_fertilizer": "Сульфат амонію", "sulfur_rate": 45, "cost": 100},
+}
 
 # 📝 Обробка вибору попередника та розрахунок добрив
-@dp.message(lambda message: message.text in previous_crops)
+@dp.message(lambda message: message.text in previous_crops_groups)
 async def calculate_fertilizer(message: types.Message):
     selected_previous_crop = message.text
-    recommendation = generate_fertilizer_recommendation(selected_previous_crop)
-
+    recommendation = fertilizer_data.get(selected_previous_crop, fertilizer_data["Зернові"])
     await message.answer(
-        f"💡 Рекомендація для {selected_previous_crop}:\n\n"
-        f"📌 Комплексне добриво: {recommendation['complex_fertilizer']}, {recommendation['complex_rate']} кг/га\n"
-        f"📌 Азотні добрива: {recommendation['nitrogen_fertilizer']}, {recommendation['nitrogen_rate']} кг/га\n"
-        f"📌 Сірчані добрива: {recommendation['sulfur_fertilizer']}, {recommendation['sulfur_rate']} кг/га\n"
-        f"💰 Орієнтовна вартість: {recommendation['cost']}$/га",
+        f"💡 Рекомендація для попередника {selected_previous_crop}:
+        \n📌 Комплексне добриво: {recommendation['complex_fertilizer']}, {recommendation['complex_rate']} кг/га
+        \n📌 Азотні добрива: {recommendation['nitrogen_fertilizer']}, {recommendation['nitrogen_rate']} кг/га
+        \n📌 Сірчані добрива: {recommendation['sulfur_fertilizer']}, {recommendation['sulfur_rate']} кг/га
+        \n💰 Орієнтовна вартість: {recommendation['cost']}$/га",
         reply_markup=ReplyKeyboardMarkup(
             keyboard=[
                 [KeyboardButton(text="🔄 Обрати іншу культуру")],
@@ -90,26 +89,6 @@ async def calculate_fertilizer(message: types.Message):
             ],
             resize_keyboard=True
         )
-    )
-
-# 💳 Оплата
-@dp.message(lambda message: message.text == "💳 Отримати детальний розрахунок (10$)")
-async def process_payment(message: types.Message):
-    await message.answer(
-        "💳 Для отримання детального розрахунку натисніть кнопку нижче:",
-        reply_markup=InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text="Оплатити через LiqPay", url="https://www.liqpay.ua/")]
-            ]
-        )
-    )
-
-# ℹ️ Інформація про бота
-@dp.message(lambda message: message.text == "ℹ️ Інформація про бота")
-async def bot_info(message: types.Message):
-    await message.answer(
-        "ℹ️ Дізнайтесь більше про нашого бота тут: [Агроном у смартфоні](https://sites.google.com/view/agronom-bot/)",
-        parse_mode="Markdown"
     )
 
 # Запуск бота
