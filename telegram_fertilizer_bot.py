@@ -70,28 +70,9 @@ async def start(message: types.Message):
     )
     await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть дію:", reply_markup=keyboard)
 
-@dp.message(lambda message: message.text == "📄 Отримати звіт")
-async def send_report(message: types.Message):
-    crop = "Кукурудза"
-    soil = "Чорнозем"
-    prev_crop = "Зернові"
-    region = "Київська"
-    fertilizers, cost = advanced_fertilizer_analysis(crop, soil, prev_crop, region)
-    data = f"""
-    🚜 **Агроаналітичний звіт**
-    📍 Культура: {crop}
-    🌱 Тип ґрунту: {soil}
-    🔄 Попередник: {prev_crop}
-    📍 Регіон: {region}
-    📊 Рекомендовані добрива:
-    - Азот (N): {fertilizers['N']} кг/га
-    - Фосфор (P): {fertilizers['P']} кг/га
-    - Калій (K): {fertilizers['K']} кг/га
-    💰 Загальна вартість: {cost} $/га
-    """
-    with open("fertilizer_report.txt", "w", encoding="utf-8") as file:
-        file.write(data)
-    await message.answer_document(InputFile("fertilizer_report.txt"))
+@dp.message(lambda message: message.text in ["🌱 Обрати культуру", "📊 Отримати аналіз", "💰 Порівняти витрати", "📄 Отримати звіт"])
+async def handle_buttons(message: types.Message):
+    await message.answer(f"Ви обрали: {message.text}")
 
 async def main():
     logging.basicConfig(level=logging.INFO)
