@@ -15,8 +15,9 @@ except ModuleNotFoundError:
     import matplotlib.pyplot as plt
 
 import numpy as np
+import pandas as pd
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InputFile
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
@@ -53,47 +54,60 @@ fertilizer_db = {
 # Додаткові параметри
 price_per_kg = {"N": 0.8, "P": 1.2, "K": 1.0}  # Ціни на добрива
 
-# Баланс поживних речовин після попередньої культури
-previous_crop_balance = {
-    "Зернові": {"N": -20, "P": 0, "K": -10},
-    "Бобові": {"N": 30, "P": 5, "K": 10},
-    "Олійні": {"N": -10, "P": -5, "K": -15}
-}
+# Функція розрахунку вартості добрив
+def calculate_fertilizer_cost(fertilizer_rates):
+    return sum(fertilizer_rates[element] * price_per_kg[element] for element in fertilizer_rates)
 
-# Функція розрахунку потреби у добривах з урахуванням залишків
-def calculate_adjusted_fertilizers(crop, prev_crop):
-    base_needs = fertilizer_db[crop]
-    adjustments = previous_crop_balance.get(prev_crop, {"N": 0, "P": 0, "K": 0})
-    return {
-        "N": max(0, base_needs["N"] + adjustments["N"]),
-        "P": max(0, base_needs["P"] + adjustments["P"]),
-        "K": max(0, base_needs["K"] + adjustments["K"]),
+# Функція для розширеного аналізу умов вирощування
+def advanced_fertilizer_analysis(crop, soil, prev_crop, region):
+    base_fertilizers = fertilizer_db[crop]
+    # Врахування кліматичних умов
+    climatic_factors = {"Київська": 1.0, "Львівська": 1.1, "Одеська": 0.9, "Полтавська": 1.05}
+    climate_adjustment = climatic_factors.get(region, 1.0)
+    
+    # Врахування залишків поживних речовин
+    prev_crop_impact = {"Зернові": {"N": -10, "P": 0, "K": -5}, "Бобові": {"N": 20, "P": 5, "K": 10}}
+    crop_impact = prev_crop_impact.get(prev_crop, {"N": 0, "P": 0, "K": 0})
+    
+    adjusted_fertilizers = {
+        "N": max(0, base_fertilizers["N"] + crop_impact["N"] * climate_adjustment),
+        "P": max(0, base_fertilizers["P"] + crop_impact["P"] * climate_adjustment),
+        "K": max(0, base_fertilizers["K"] + crop_impact["K"] * climate_adjustment),
     }
-
-# Кліматичні фактори (опади)
-def get_climatic_adjustment(region):
-    climatic_data = {
-        "Київська": 600,
-        "Львівська": 700,
-        "Вінницька": 550,
-        "Одеська": 400,
-        "Харківська": 500,
-        "Полтавська": 520,
-        "Черкаська": 580
-    }
-    avg_rainfall = climatic_data.get(region, 550)
-    if avg_rainfall < 500:
-        return {"N": -10, "P": 0, "K": -5}
-    elif avg_rainfall > 650:
-        return {"N": 10, "P": 5, "K": 5}
-    return {"N": 0, "P": 0, "K": 0}
+    
+    return adjusted_fertilizers, calculate_fertilizer_cost(adjusted_fertilizers)
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    keyboard.add(KeyboardButton("🌱 Обрати культуру"))
-    keyboard.add(KeyboardButton("ℹ️ Інформація про бота"))
-    await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть культуру:", reply_markup=keyboard)
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[
+        [KeyboardButton("🌱 Обрати культуру")],
+        [KeyboardButton("📊 Отримати аналіз"), KeyboardButton("💰 Порівняти витрати")],
+        [KeyboardButton("📄 Отримати звіт")]
+    ])
+    await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть дію:", reply_markup=keyboard)
+
+@dp.message(lambda message: message.text == "📄 Отримати звіт")
+async def send_report(message: types.Message):
+    crop = "Кукурудза"
+    soil = "Чорнозем"
+    prev_crop = "Зернові"
+    region = "Київська"
+    fertilizers, cost = advanced_fertilizer_analysis(crop, soil, prev_crop, region)
+    data = f"""
+    🚜 **Агроаналітичний звіт**
+    📍 Культура: {crop}
+    🌱 Тип ґрунту: {soil}
+    🔄 Попередник: {prev_crop}
+    📍 Регіон: {region}
+    📊 Рекомендовані добрива:
+    - Азот (N): {fertilizers['N']} кг/га
+    - Фосфор (P): {fertilizers['P']} кг/га
+    - Калій (K): {fertilizers['K']} кг/га
+    💰 Загальна вартість: {cost} $/га
+    """
+    with open("fertilizer_report.txt", "w", encoding="utf-8") as file:
+        file.write(data)
+    await message.answer_document(InputFile("fertilizer_report.txt"))
 
 async def main():
     logging.basicConfig(level=logging.INFO)
