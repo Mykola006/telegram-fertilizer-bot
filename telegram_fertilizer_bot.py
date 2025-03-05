@@ -39,6 +39,12 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 app = web.Application()
 
+# Перевірка створення app
+if not isinstance(app, web.Application):
+    raise RuntimeError("❌ Помилка: app не створено правильно!")
+
+print("🚀 Бот успішно стартує...")
+
 # Список культур, типів ґрунту, попередників, областей
 crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
 soil_types = ["Чорнозем", "Супіщаний", "Глинистий", "Підзолистий"]
@@ -86,49 +92,7 @@ async def start(message: types.Message):
     keyboard.add(KeyboardButton("ℹ️ Інформація про бота"))
     await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть культуру:", reply_markup=keyboard)
 
-@dp.message(lambda message: message.text in crops)
-async def select_soil(message: types.Message, state: FSMContext):
-    await state.update_data(crop=message.text)
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    for soil in soil_types:
-        keyboard.add(KeyboardButton(soil))
-    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть тип ґрунту:", reply_markup=keyboard)
-
-@dp.message(lambda message: message.text in soil_types)
-async def select_previous_crop(message: types.Message, state: FSMContext):
-    await state.update_data(soil=message.text)
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    for prev_crop in previous_crops:
-        keyboard.add(KeyboardButton(prev_crop))
-    await message.answer(f"✅ Ви обрали {message.text}. Тепер оберіть попередник:", reply_markup=keyboard)
-
-@dp.message(lambda message: message.text in previous_crops)
-async def calculate_fertilizers(message: types.Message, state: FSMContext):
-    user_data = await state.get_data()
-    crop = user_data.get("crop")
-    soil = user_data.get("soil")
-    prev_crop = message.text
-    
-    if crop not in fertilizer_db:
-        await message.answer("⚠️ Помилка! Дані для цієї культури відсутні.")
-        return
-    
-    fertilizer_recommendations = fertilizer_db[crop]
-    ph_recommendation = adjust_for_soil_ph(fertilizer_recommendations["pH"])
-    total_cost = calculate_fertilizer_cost(fertilizer_recommendations)
-    
-    response = f"""
-🔍 **Аналітичні дані**:
-🌾 Культура: {crop}
-🌍 Тип ґрунту: {soil}
-🪵 Попередник: {prev_crop}
-📊 Рекомендовані добрива (кг/га): {fertilizer_recommendations}
-💰 Орієнтовна вартість добрив: {total_cost} $/га
-⚖️ {ph_recommendation}
-"""
-    await message.answer(response)
-
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    dp.startup.register(start)
+    print("🚀 Бот запускається...")
     web.run_app(app, host=WEBAPP_HOST, port=WEBAPP_PORT)
