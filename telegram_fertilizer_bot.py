@@ -45,36 +45,23 @@ previous_crops = ["Зернові", "Бобові", "Технічні", "Ово�
 moisture_zones = ["Низька", "Середня", "Достатня"]
 
 # Функція створення клавіатури
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-
-def create_keyboard(options, add_back=False):
+def create_keyboard(options, add_back=False, add_skip=False):
     keyboard = [[KeyboardButton(text=option)] for option in options]
-    
     if add_back:
-        keyboard.append([KeyboardButton(text="⬅️ Назад")])  # Додаємо кнопку "Назад"
-
-    return ReplyKeyboardMarkup(
-        keyboard=keyboard,
-        resize_keyboard=True
-    )
-
-    for option in options:
-        keyboard.add(KeyboardButton(option))
-    if add_back:
-        keyboard.add(KeyboardButton("Назад"))
+        keyboard.append([KeyboardButton(text="⬅️ Назад")])
     if add_skip:
-        keyboard.add(KeyboardButton("Пропустити"))
-    return keyboard
+        keyboard.append([KeyboardButton(text="Пропустити")])
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
 
 # Функція для розрахунку добрив (базовий приклад)
 async def calculate_fertilizer(crop, yield_goal, area, soil_type):
     nutrient_requirements = {
-        "пшениця": {"N": 30, "P": 10, "K": 20},
-        "кукурудза": {"N": 25, "P": 12, "K": 25},
-        "соняшник": {"N": 42, "P": 18, "K": 85},
-        "соя": {"N": 15, "P": 20, "K": 30},
-        "ріпак": {"N": 50, "P": 15, "K": 40},
-        "ячмінь": {"N": 25, "P": 10, "K": 20}
+        "пшениця": {"N": 25, "P": 8, "K": 18},
+        "кукурудза": {"N": 22, "P": 10, "K": 20},
+        "соняшник": {"N": 30, "P": 15, "K": 60},
+        "соя": {"N": 10, "P": 15, "K": 25},
+        "ріпак": {"N": 45, "P": 12, "K": 35},
+        "ячмінь": {"N": 20, "P": 8, "K": 18}
     }
     if crop not in nutrient_requirements:
         return "Помилка: невідома культура."
@@ -218,8 +205,8 @@ async def ask_ph_level(message: types.Message, state: FSMContext):
     await state.update_data(soil_type=text.lower())
     # Перехід до введення pH ґрунту
     await state.set_state(FertilizerCalculation.ph)
-    ph_kb = create_keyboard([], add_back=True)
-    await message.answer("🧪 Введіть pH ґрунту:", reply_markup=ph_kb)
+    ph_kb = create_keyboard([], add_back=True, add_skip=True)
+    await message.answer("🧪 Введіть pH ґрунту або натисніть Пропустити:", reply_markup=ph_kb)
 
 # Обробник введення pH ґрунту та формування рекомендацій
 @dp.message(FertilizerCalculation.ph)
@@ -231,11 +218,14 @@ async def show_recommendations(message: types.Message, state: FSMContext):
         soil_kb = create_keyboard(soil_types, add_back=True)
         await message.answer("🟤 Оберіть тип ґрунту:", reply_markup=soil_kb)
         return
-    try:
-        ph_value = float(text.replace(',', '.'))
-    except ValueError:
-        await message.answer("❗ Введіть pH як число, наприклад 5.5.")
-        return
+    if text == "Пропустити":
+        ph_value = None
+    else:
+        try:
+            ph_value = float(text.replace(',', '.'))
+        except ValueError:
+            await message.answer("❗ Введіть pH як число, наприклад 5.5.")
+            return
     data = await state.get_data()
     crop = data['crop']
     yield_goal = data['yield_goal']
@@ -244,12 +234,12 @@ async def show_recommendations(message: types.Message, state: FSMContext):
     soil_type = data['soil_type']
     # Розрахунки з урахуванням усіх факторів
     base_requirements = {
-        "пшениця": {"N": 30, "P": 10, "K": 20},
-        "кукурудза": {"N": 25, "P": 12, "K": 25},
-        "соняшник": {"N": 42, "P": 18, "K": 85},
-        "соя": {"N": 15, "P": 20, "K": 30},
-        "ріпак": {"N": 50, "P": 15, "K": 40},
-        "ячмінь": {"N": 25, "P": 10, "K": 20}
+        "пшениця": {"N": 25, "P": 8, "K": 18},
+        "кукурудза": {"N": 22, "P": 10, "K": 20},
+        "соняшник": {"N": 30, "P": 15, "K": 60},
+        "соя": {"N": 10, "P": 15, "K": 25},
+        "ріпак": {"N": 45, "P": 12, "K": 35},
+        "ячмінь": {"N": 20, "P": 8, "K": 18}
     }
     result_text = ""
     if crop not in base_requirements:
@@ -300,7 +290,9 @@ async def show_recommendations(message: types.Message, state: FSMContext):
         crop_name = crop.capitalize()
         result_text = f"🔹 Для культури {crop_name} при врожайності {yield_goal} т/га:\n    - Азот (N): {N_per_ha:.1f} кг/га\n    - Фосфор (P): {P_per_ha:.1f} кг/га\n    - Калій (K): {K_per_ha:.1f} кг/га\n"
         # Необхідність вапнування
-        if ph_value < 5.0:
+        if ph_value is None:
+            result_text += "ℹ️ pH ґрунту не вказано, рекомендації щодо вапнування пропущено.\n"
+        elif ph_value < 5.0:
             result_text += f"⚠️ Ґрунт кислий (pH {ph_value}). Рекомендовано вапнування (~2 т/га вапна).\n"
         elif ph_value < 5.5:
             result_text += f"⚠️ Ґрунт кислий (pH {ph_value}). Рекомендовано вапнування (~1 т/га вапна).\n"
@@ -351,6 +343,12 @@ async def show_recommendations(message: types.Message, state: FSMContext):
                         amount = total_per_ha * fraction
                         portions.append(f"{amount:.1f} кг - {phase}")
                     result_text += f"   - {nutrient}: " + "; ".join(portions) + "\n"
+    # Додаємо рекомендовані добрива
+    result_text += "💡 Рекомендовані добрива для забезпечення цієї потреби:\n"
+    result_text += "   - Азотні: аміачна селітра (34% N), карбамід (46% N), КАС-32.\n"
+    result_text += "   - Фосфорні: амофос (MAP), діамонійфосфат (DAP).\n"
+    result_text += "   - Калійні: калій хлористий (KCl), калій сульфат.\n"
+    result_text += "   - Комплексні (NPK): нітроамофоска (16:16:16), діамофоска (10:26:26).\n"
     # Надсилаємо рекомендації
     await message.answer(result_text)
     # Запитуємо площу для обчислення загальної потреби
@@ -365,12 +363,12 @@ async def calculate_total(message: types.Message, state: FSMContext):
     if text == "Назад":
         # Повернення до повторного введення pH
         await state.set_state(FertilizerCalculation.ph)
-        ph_kb = create_keyboard([], add_back=True)
+        ph_kb = create_keyboard([], add_back=True, add_skip=True)
         await message.answer("🧪 Введіть pH ґрунту:", reply_markup=ph_kb)
         return
     if text == "Пропустити":
         # Завершення без розрахунку площі
-        await message.answer("✅ Розрахунок завершено. Ви можете почати новий розрахунок або отримати PDF.")
+        await message.answer("✅ Розрахунок завершено. Ви можете почати новий розрахунок або отримати PDF.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='📊 Новий розрахунок', callback_data='calc_fertilizer')],[InlineKeyboardButton(text='📄 Отримати PDF', callback_data='get_pdf')]]))
         user_id = message.from_user.id
         usage_count[user_id] = usage_count.get(user_id, 0) + 1
         await state.clear()
@@ -390,12 +388,12 @@ async def calculate_total(message: types.Message, state: FSMContext):
     moisture = data['moisture']
     soil_type = data['soil_type']
     base_requirements = {
-        "пшениця": {"N": 30, "P": 10, "K": 20},
-        "кукурудза": {"N": 25, "P": 12, "K": 25},
-        "соняшник": {"N": 42, "P": 18, "K": 85},
-        "соя": {"N": 15, "P": 20, "K": 30},
-        "ріпак": {"N": 50, "P": 15, "K": 40},
-        "ячмінь": {"N": 25, "P": 10, "K": 20}
+        "пшениця": {"N": 25, "P": 8, "K": 18},
+        "кукурудза": {"N": 22, "P": 10, "K": 20},
+        "соняшник": {"N": 30, "P": 15, "K": 60},
+        "соя": {"N": 10, "P": 15, "K": 25},
+        "ріпак": {"N": 45, "P": 12, "K": 35},
+        "ячмінь": {"N": 20, "P": 8, "K": 18}
     }
     if crop not in base_requirements:
         await message.answer("Помилка при обчисленні загальної потреби.")
@@ -439,7 +437,8 @@ async def calculate_total(message: types.Message, state: FSMContext):
         total_K = K_rate * yield_goal * area_val
         total_text = f"🔸 Загальна потреба добрив на площу {area_val} га:\n    - Азот (N): {total_N:.1f} кг\n    - Фосфор (P): {total_P:.1f} кг\n    - Калій (K): {total_K:.1f} кг"
         await message.answer(total_text)
-    # Завершуємо стан та фіксуємо використання
+    # Завершуємо розрахунок: пропонуємо повернення до початку або PDF
+    await message.answer("✅ Розрахунок завершено. Ви можете почати новий розрахунок або отримати PDF.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text='📊 Новий розрахунок', callback_data='calc_fertilizer')],[InlineKeyboardButton(text='📄 Отримати PDF', callback_data='get_pdf')]]))
     user_id = message.from_user.id
     usage_count[user_id] = usage_count.get(user_id, 0) + 1
     await state.clear()
