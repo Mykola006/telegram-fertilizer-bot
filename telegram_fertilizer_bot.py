@@ -82,15 +82,15 @@ async def get_field_area(message: types.Message):
     yield_goal = data.get("yield_goal", 5)
     fertilizers = calculate_fertilizer_rates(crop, yield_goal)
     total_cost = calculate_total_cost(fertilizers, area)
-    result = f"📊 Розрахунок:
-    🔹 Культура: {crop}
-    🔹 Запланована врожайність: {yield_goal} т/га
-    🔹 Загальна площа: {area} га
-    🔹 Добрива:
-    - Азот (N): {fertilizers['N']} кг/га
-    - Фосфор (P): {fertilizers['P']} кг/га
-    - Калій (K): {fertilizers['K']} кг/га
-    💰 Загальна вартість: {total_cost:.2f} USD"
+    result = (f"📊 Розрахунок:\n"
+              f"🔹 Культура: {crop}\n"
+              f"🔹 Запланована врожайність: {yield_goal} т/га\n"
+              f"🔹 Загальна площа: {area} га\n"
+              f"🔹 Добрива:\n"
+              f"- Азот (N): {fertilizers['N']} кг/га\n"
+              f"- Фосфор (P): {fertilizers['P']} кг/га\n"
+              f"- Калій (K): {fertilizers['K']} кг/га\n"
+              f"💰 Загальна вартість: {total_cost:.2f} USD")
     await message.answer(result, reply_markup=ReplyKeyboardRemove())
 
 async def main():
