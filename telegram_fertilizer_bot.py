@@ -697,7 +697,12 @@ async def send_pdf(callback_query: types.CallbackQuery, state: FSMContext):
     pdf_file = await generate_pdf(pdf_content)
     from aiogram.types import FSInputFile
 
-await bot.send_document(chat_id=user_id, document=FSInputFile(pdf_file))
+async def send_pdf(bot, user_id, pdf_file):
+    try:
+        file = FSInputFile(pdf_file)
+        await bot.send_document(chat_id=user_id, document=file)
+    except Exception as e:
+        print(f"Помилка при відправці PDF: {e}")
 
 # Обробник довідника культур (поки що заглушка)
 @dp.callback_query(lambda c: c.data == 'crop_guide')
