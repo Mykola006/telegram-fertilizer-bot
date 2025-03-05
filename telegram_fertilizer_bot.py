@@ -37,6 +37,7 @@ fertilizer_db = {
 
 # Додаткові параметри
 price_per_kg = {"N": 0.8, "P": 1.2, "K": 1.0}  # Ціни на добрива
+ph_adjustment = {"Чорнозем": 6.5, "Супіщаний": 5.5, "Глинистий": 6.0, "Підзолистий": 5.0}  # Рекомендоване pH
 
 # Функція розрахунку вартості добрив
 def calculate_fertilizer_cost(fertilizer_rates):
@@ -55,6 +56,12 @@ def advanced_fertilizer_analysis(crop, soil, prev_crop, region):
         "P": max(0, base_fertilizers["P"] + crop_impact["P"] * climate_adjustment),
         "K": max(0, base_fertilizers["K"] + crop_impact["K"] * climate_adjustment),
     }
+    
+    # Коригування pH та вапнування
+    soil_ph = ph_adjustment.get(soil, 6.0)
+    ph_diff = soil_ph - base_fertilizers["pH"]
+    if ph_diff < -0.5:
+        adjusted_fertilizers["CaCO3"] = abs(ph_diff) * 100  # Додавання вапна
     
     return adjusted_fertilizers, calculate_fertilizer_cost(adjusted_fertilizers)
 
