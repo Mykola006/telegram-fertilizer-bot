@@ -1,8 +1,5 @@
 aiogram
-aiohttp
 requests
 matplotlib
 numpy
-scikit-learn
 pandas
-pyyaml
