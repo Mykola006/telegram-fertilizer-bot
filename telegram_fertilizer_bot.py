@@ -79,11 +79,12 @@ def advanced_fertilizer_analysis(crop, soil, prev_crop, region):
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, keyboard=[
-        [KeyboardButton("🌱 Обрати культуру")],
-        [KeyboardButton("📊 Отримати аналіз"), KeyboardButton("💰 Порівняти витрати")],
-        [KeyboardButton("📄 Отримати звіт")]
-    ])
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
+        KeyboardButton("🌱 Обрати культуру"),
+        KeyboardButton("📊 Отримати аналіз"),
+        KeyboardButton("💰 Порівняти витрати"),
+        KeyboardButton("📄 Отримати звіт")
+    )
     await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть дію:", reply_markup=keyboard)
 
 @dp.message(lambda message: message.text == "📄 Отримати звіт")
