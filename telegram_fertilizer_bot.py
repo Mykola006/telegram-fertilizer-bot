@@ -45,8 +45,13 @@ previous_crops = ["Зернові", "Бобові", "Технічні", "Ово�
 moisture_zones = ["Низька", "Середня", "Достатня"]
 
 # Функція створення клавіатури
-def create_keyboard(options, add_back=False, add_skip=False):
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+
+def create_keyboard(options):
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=option)] for option in options],
+        resize_keyboard=True
+    )
     for option in options:
         keyboard.add(KeyboardButton(option))
     if add_back:
