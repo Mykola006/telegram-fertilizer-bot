@@ -1,38 +1,22 @@
 import os
-
-try:
-    import requests
-except ModuleNotFoundError:
-    import os
-    os.system("pip install requests")
-    import requests
-
-try:
-    import matplotlib.pyplot as plt
-except ModuleNotFoundError:
-    import os
-    os.system("pip install matplotlib")
-    import matplotlib.pyplot as plt
-
+import asyncio
+import logging
 import numpy as np
 import pandas as pd
+import requests
+import matplotlib.pyplot as plt
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InputFile
-from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
-import logging
-import asyncio
 
 # Завантаження змінних середовища
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 if not TOKEN:
     raise ValueError("Помилка: TELEGRAM_BOT_TOKEN не знайдено у змінних середовища!")
 
-# Ініціалізація бота
+# Ініціалізація бота та диспетчера
 bot = Bot(token=TOKEN)
-storage = MemoryStorage()
-dp = Dispatcher(storage=storage)
+dp = Dispatcher()
 
 # Список культур, типів ґрунту, попередників, областей
 crops = ["Пшениця", "Кукурудза", "Соняшник", "Ріпак", "Ячмінь", "Соя"]
@@ -61,11 +45,8 @@ def calculate_fertilizer_cost(fertilizer_rates):
 # Функція для розширеного аналізу умов вирощування
 def advanced_fertilizer_analysis(crop, soil, prev_crop, region):
     base_fertilizers = fertilizer_db[crop]
-    # Врахування кліматичних умов
     climatic_factors = {"Київська": 1.0, "Львівська": 1.1, "Одеська": 0.9, "Полтавська": 1.05}
     climate_adjustment = climatic_factors.get(region, 1.0)
-    
-    # Врахування залишків поживних речовин
     prev_crop_impact = {"Зернові": {"N": -10, "P": 0, "K": -5}, "Бобові": {"N": 20, "P": 5, "K": 10}}
     crop_impact = prev_crop_impact.get(prev_crop, {"N": 0, "P": 0, "K": 0})
     
@@ -79,11 +60,13 @@ def advanced_fertilizer_analysis(crop, soil, prev_crop, region):
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
-        KeyboardButton("🌱 Обрати культуру"),
-        KeyboardButton("📊 Отримати аналіз"),
-        KeyboardButton("💰 Порівняти витрати"),
-        KeyboardButton("📄 Отримати звіт")
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🌱 Обрати культуру")],
+            [KeyboardButton(text="📊 Отримати аналіз"), KeyboardButton(text="💰 Порівняти витрати")],
+            [KeyboardButton(text="📄 Отримати звіт")]
+        ],
+        resize_keyboard=True
     )
     await message.answer("👋 Вітаю! Це бот для розрахунку мінерального живлення. Оберіть дію:", reply_markup=keyboard)
 
