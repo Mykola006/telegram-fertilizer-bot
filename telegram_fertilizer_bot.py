@@ -53,13 +53,40 @@ fertilizer_db = {
 # Додаткові параметри
 price_per_kg = {"N": 0.8, "P": 1.2, "K": 1.0}  # Ціни на добрива
 
-def adjust_for_soil_ph(soil_ph, target_ph=6.5):
-    if soil_ph < target_ph:
-        return f"Рекомендується внесення вапна: {round((target_ph - soil_ph) * 2, 1)} т/га"
-    return "pH ґрунту в нормі, вапнування не потрібне."
+# Баланс поживних речовин після попередньої культури
+previous_crop_balance = {
+    "Зернові": {"N": -20, "P": 0, "K": -10},
+    "Бобові": {"N": 30, "P": 5, "K": 10},
+    "Олійні": {"N": -10, "P": -5, "K": -15}
+}
 
-def calculate_fertilizer_cost(fertilizer_rates):
-    return sum(fertilizer_rates[element] * price_per_kg[element] for element in fertilizer_rates)
+# Функція розрахунку потреби у добривах з урахуванням залишків
+def calculate_adjusted_fertilizers(crop, prev_crop):
+    base_needs = fertilizer_db[crop]
+    adjustments = previous_crop_balance.get(prev_crop, {"N": 0, "P": 0, "K": 0})
+    return {
+        "N": max(0, base_needs["N"] + adjustments["N"]),
+        "P": max(0, base_needs["P"] + adjustments["P"]),
+        "K": max(0, base_needs["K"] + adjustments["K"]),
+    }
+
+# Кліматичні фактори (опади)
+def get_climatic_adjustment(region):
+    climatic_data = {
+        "Київська": 600,
+        "Львівська": 700,
+        "Вінницька": 550,
+        "Одеська": 400,
+        "Харківська": 500,
+        "Полтавська": 520,
+        "Черкаська": 580
+    }
+    avg_rainfall = climatic_data.get(region, 550)
+    if avg_rainfall < 500:
+        return {"N": -10, "P": 0, "K": -5}
+    elif avg_rainfall > 650:
+        return {"N": 10, "P": 5, "K": 5}
+    return {"N": 0, "P": 0, "K": 0}
 
 @dp.message(Command("start"))
 async def start(message: types.Message):
