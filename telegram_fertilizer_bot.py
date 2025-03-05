@@ -1,3 +1,16 @@
+import os
+from dotenv import load_dotenv
+
+# Завантаження змінних середовища
+load_dotenv()
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+if not TOKEN:
+    raise ValueError("❌ Помилка: Токен бота не знайдено! Перевірте .env або змінні середовища.")
+
+print(f"✅ Токен завантажено: {TOKEN[:10]}... (приховано для безпеки)")
+
 import asyncio
 from aiogram import Bot, Dispatcher, types
 import logging
