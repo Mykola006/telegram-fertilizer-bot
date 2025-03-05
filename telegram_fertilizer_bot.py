@@ -695,7 +695,9 @@ async def send_pdf(callback_query: types.CallbackQuery, state: FSMContext):
     if not pdf_content:
         pdf_content = 'Немає даних для формування рекомендацій. Виконайте розрахунок спочатку.'
     pdf_file = await generate_pdf(pdf_content)
-    await bot.send_document(chat_id=user_id, document=InputFile(pdf_file))
+    from aiogram.types import FSInputFile
+
+await bot.send_document(chat_id=user_id, document=FSInputFile(pdf_file))
 
 # Обробник довідника культур (поки що заглушка)
 @dp.callback_query(lambda c: c.data == 'crop_guide')
